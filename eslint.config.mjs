@@ -10,6 +10,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Componentes de terceros (Spell UI e icons-animated), copiados tal cual del registro
+    "components/spell/**",
+    "components/icons/**",
   ]),
 ]);
 

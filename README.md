@@ -200,7 +200,9 @@ Formulario en **React con Next.js (JavaScript)**. Sirve para elegir el tipo de w
 
 - Los precios que se ven en el formulario se leen de `GET /api/tarifas`. **El total siempre lo calcula la API**: el navegador no suma nada.
 - El botón **«Editar la petición JSON»** permite mandar el cuerpo a mano. Así se pueden reproducir desde la interfaz los casos inválidos 5 a 9 de la tabla.
-- El desplegable **«Ver lo que se envía»** muestra el JSON exacto de cada petición.
+- El desplegable **«Ver lo que se envía»** muestra el JSON exacto de cada petición y permite copiarla como comando `curl`.
+- Los componentes visuales vienen de **[Spell UI](https://spell.sh)**, un registro de shadcn: Flow Button, Copy Button, Spinner, Tilt Card, Animated Gradient, Gradient Wave Text, Words Stagger, Special Text y Blur Reveal. Están en [`components/spell/`](components/spell/).
+- Los iconos animados son de **[icons-animated](https://icons.lndev.me)** (colección Hugeicons) y están en [`components/icons/`](components/icons/).
 
 Hacen falta **dos terminales**, una para la API y otra para la interfaz:
 

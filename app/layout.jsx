@@ -1,15 +1,13 @@
-import { Geist_Mono, Inter } from "next/font/google"
+import { Geist, Geist_Mono, Sora } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
+// Texto: Geist · Títulos: Sora · Código y cifras animadas: Geist Mono
+const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const fontDisplay = Sora({ subsets: ["latin"], variable: "--font-display" })
+const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata = {
   title: "Presupuesta mi web",
@@ -21,7 +19,13 @@ export default function RootLayout({ children }) {
     <html
       lang="es"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
+      className={cn(
+        "antialiased",
+        fontSans.variable,
+        fontDisplay.variable,
+        fontMono.variable,
+        "font-sans"
+      )}
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>

@@ -1,0 +1,296 @@
+"use client"
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { getDefaultValueType, setTarget, visualElementStore } from "motion"
+import { motion, useAnimation } from "motion/react"
+import { cn } from "@/lib/utils"
+const HugeiconsRefreshCwIcon = forwardRef(
+  (
+    {
+      onMouseEnter,
+      onMouseLeave,
+      onFocus,
+      onBlur,
+      className,
+      size = 28,
+      ...props
+    },
+    ref
+  ) => {
+    const controls = useAnimation()
+    const motionPreference = useRef(false)
+    const startAnimation = useCallback(() => {
+      if (!motionPreference.current) return controls.start("animate")
+    }, [controls])
+    const stopAnimation = useCallback(() => {
+      if (motionPreference.current) {
+        controls.stop()
+        controls.set("normal")
+        return
+      }
+      return controls.start("normal")
+    }, [controls])
+    useEffect(() => {
+      const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+      const updatePreference = () => {
+        motionPreference.current = media.matches
+        if (media.matches) {
+          controls.stop()
+          controls.set("normal")
+        }
+      }
+      updatePreference()
+      media.addEventListener("change", updatePreference)
+      return () => {
+        media.removeEventListener("change", updatePreference)
+        controls.stop()
+      }
+    }, [controls])
+    const isControlledRef = useRef(false)
+    const {
+      rootRef: iconRootRef,
+      reduceDefinition,
+      ...iconAccessibility
+    } = useIconAccessibility(ref, () => {
+      isControlledRef.current = ref != null
+      return {
+        startAnimation: () => startAnimation(),
+        stopAnimation: () => stopAnimation(),
+      }
+    }, [controls])
+    const handleMouseEnter = useCallback(
+      (e) => {
+        if (!isControlledRef.current) startAnimation()
+        void e
+      },
+      [startAnimation]
+    )
+    const handleMouseLeave = useCallback(
+      (e) => {
+        if (!isControlledRef.current) stopAnimation()
+        void e
+      },
+      [stopAnimation]
+    )
+    return (
+      <div
+        className={cn(className)}
+        {...props}
+        ref={iconRootRef}
+        onMouseEnter={(event) => {
+          if (!iconAccessibility.controlled && !iconAccessibility.reduced) {
+            handleMouseEnter(event)
+          }
+          onMouseEnter?.(event)
+        }}
+        onMouseLeave={(event) => {
+          if (!iconAccessibility.controlled) {
+            handleMouseLeave(event)
+          }
+          onMouseLeave?.(event)
+        }}
+        onFocus={(event) => {
+          if (!iconAccessibility.controlled && !iconAccessibility.reduced) {
+            ;((event) => {
+              if (!isControlledRef.current) startAnimation()
+              void event
+            })(event)
+          }
+          onFocus?.(event)
+        }}
+        onBlur={(event) => {
+          if (!iconAccessibility.controlled) {
+            ;((event) => {
+              if (!isControlledRef.current) stopAnimation()
+              void event
+            })(event)
+          }
+          onBlur?.(event)
+        }}
+      >
+        <motion.svg
+          xmlns="http://www.w3.org/2000/svg"
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+          focusable="false"
+          animate={reduceDefinition(controls)}
+          transition={{ type: "spring", stiffness: 250, damping: 25 }}
+          variants={{
+            normal: { rotate: "0deg" },
+            animate: { rotate: "50deg" },
+          }}
+        >
+          <path
+            d="M3.04712 13C3.01082 12.6717 2.99219 12.338 2.99219 12C2.99219 7.02944 7.02162 3 11.9922 3C14.8195 3 17.3422 4.30367 18.9922 6.34267M20.9373 11C20.9736 11.3283 20.9922 11.662 20.9922 12C20.9922 16.9706 16.9628 21 11.9922 21C9.16492 21 6.64214 19.6963 4.99219 17.6573"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+
+          <path
+            d="M15.9922 7H16.9922C18.4064 7 19.1135 7 19.5528 6.56066C19.9922 6.12132 19.9922 5.41421 19.9922 4V3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+
+          <path
+            d="M7.99219 17H6.99219C5.57797 17 4.87087 17 4.43153 17.4393C3.99219 17.8787 3.99219 18.5858 3.99219 20V21"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </motion.svg>
+      </div>
+    )
+  }
+)
+HugeiconsRefreshCwIcon.displayName = "HugeiconsRefreshCwIcon"
+export { HugeiconsRefreshCwIcon }
+function useIconAccessibility(ref, createHandle, controllers) {
+  const rawHandle = createHandle()
+  const raw = useRef(rawHandle)
+  useEffect(() => {
+    raw.current = rawHandle
+  }, [rawHandle])
+  const controls = useRef(controllers)
+  const rootRef = useRef(null)
+  const preference = useRef(false)
+  const mounted = useRef(true)
+  const [reduced, setReduced] = useState(false)
+  const api = useMemo(
+    () => ({
+      startAnimation() {
+        if (
+          mounted.current &&
+          !preference.current &&
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+          void raw.current.startAnimation()
+        }
+      },
+      stopAnimation() {
+        if (mounted.current) void raw.current.stopAnimation()
+      },
+    }),
+    []
+  )
+  useImperativeHandle(ref, () => api, [api])
+  useEffect(() => {
+    mounted.current = true
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const snapshots = []
+    rootRef.current?.querySelectorAll("svg, svg *").forEach((element) => {
+      const visual = visualElementStore.get(element)
+      if (visual)
+        snapshots.push({
+          visual,
+          values: { ...visual.latestValues },
+          attributes: Object.fromEntries(
+            [...element.attributes].map((attribute) => [
+              attribute.name,
+              attribute.value,
+            ])
+          ),
+        })
+    })
+    const restore = () => {
+      for (const snapshot of snapshots) {
+        const { visual, values, attributes } = snapshot
+        visual.values.forEach((value) => value.stop())
+        const props = visual.getProps()
+        const reset = {}
+        visual.values.forEach((_motionValue, key) => {
+          const attribute = key.replace(
+            /[A-Z]/g,
+            (letter) => "-" + letter.toLowerCase()
+          )
+          const defaults = {
+            opacity: 1,
+            pathLength: 1,
+            pathSpacing: 1,
+            pathOffset: 0,
+            strokeDashoffset: 0,
+          }
+          const value =
+            values[key] ??
+            props.style?.[key] ??
+            props[key] ??
+            getDefaultValueType(key)?.default ??
+            defaults[key] ??
+            attributes[attribute]
+          if (typeof value === "number" || typeof value === "string")
+            reset[key] = value
+        })
+        setTarget(visual, reset)
+        visual.render()
+      }
+    }
+    const activeControls = controls.current
+    const originals = activeControls.map((control) => {
+      const original = control.start
+      control.start = (definition, transition) => {
+        if (!mounted.current) return new Promise(() => {})
+        if (preference.current) {
+          control.set(definition)
+          return Promise.resolve()
+        }
+        return original(definition, transition)
+      }
+      return original
+    })
+    const change = () => {
+      preference.current = media.matches
+      setReduced(media.matches)
+      if (media.matches) {
+        void raw.current.stopAnimation()
+        activeControls.forEach((control) => control.stop())
+        restore()
+      }
+    }
+    change()
+    media.addEventListener("change", change)
+    return () => {
+      mounted.current = false
+      media.removeEventListener("change", change)
+      activeControls.forEach((control, index) => {
+        control.stop()
+        control.start = originals[index]
+      })
+    }
+  }, [])
+  return {
+    ...api,
+    rootRef,
+    controlled: ref != null,
+    reduced,
+    reduceDefinition(definition) {
+      if (
+        reduced &&
+        definition &&
+        typeof definition === "object" &&
+        !Array.isArray(definition) &&
+        !("start" in definition)
+      ) {
+        return {
+          ...definition,
+          transition: { type: false, duration: 0, delay: 0, repeat: 0 },
+        }
+      }
+      return definition
+    },
+  }
+}
