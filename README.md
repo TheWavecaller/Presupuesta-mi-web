@@ -4,7 +4,7 @@
 
 API REST hecha con **Node.js + Express (JavaScript)** que recibe las características de una web, valida los datos y devuelve un presupuesto desglosado calculado **solo con las tarifas del servidor**.
 
-> La API está en la carpeta [`server/`](server/). La raíz del repositorio contiene la interfaz web opcional (ampliación).
+> La API está en la carpeta [`server/`](server/). La raíz del repositorio contiene la interfaz web opcional ([ver ampliación](#interfaz-web-ampliación)).
 
 ---
 
@@ -194,6 +194,31 @@ En los casos inválidos solo cambia un campo respecto a la solicitud válida `{"
 
 ---
 
+## Interfaz web (ampliación)
+
+Formulario en **React con Next.js (JavaScript)**. Sirve para elegir el tipo de web, el número de páginas y los extras, envía la solicitud a la API y muestra el desglose o los errores 400 que devuelva.
+
+- Los precios que se ven en el formulario se leen de `GET /api/tarifas`. **El total siempre lo calcula la API**: el navegador no suma nada.
+- El botón **«Editar la petición JSON»** permite mandar el cuerpo a mano. Así se pueden reproducir desde la interfaz los casos inválidos 5 a 9 de la tabla.
+- El desplegable **«Ver lo que se envía»** muestra el JSON exacto de cada petición.
+
+Hacen falta **dos terminales**, una para la API y otra para la interfaz:
+
+```bash
+# Terminal 1 · API (puerto 3000)
+cd server
+npm install
+npm start
+
+# Terminal 2 · Interfaz (puerto 3001), desde la raíz del repositorio
+npm install
+npm run dev
+```
+
+Después abre **http://localhost:3001**. Si la API está en otra dirección, indícala en un archivo `.env.local` con `NEXT_PUBLIC_API_URL=http://localhost:4000`.
+
+---
+
 ## Organización del código
 
 ```
@@ -208,6 +233,12 @@ server/
 │   └── presupuesto.js    ← calcularPresupuesto(): lógica de negocio, sin Express
 └── test/
     └── api.test.js       ← pruebas automáticas de las rutas y los 9 casos
+
+(raíz) · interfaz web
+├── package.json          ← dependencias de la interfaz (Next.js, React)
+├── app/page.jsx          ← página principal
+├── components/presupuestador.jsx  ← formulario y panel de resultado
+└── lib/api.js            ← llamadas fetch a la API
 ```
 
 Cada pieza tiene una sola responsabilidad:
