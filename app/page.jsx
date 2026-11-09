@@ -1,5 +1,5 @@
-import { Presupuestador } from "@/components/presupuestador"
+import { Inicio } from "@/components/inicio"
 
 export default function Page() {
-  return <Presupuestador />
+  return <Inicio />
 }

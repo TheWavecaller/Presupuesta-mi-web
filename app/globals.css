@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Clases que usa Streamdown (markdown de las burbujas del chat) */
+@source "../node_modules/streamdown/dist/*.js";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -129,6 +132,26 @@
     }
   ::selection {
     background: oklch(0.66 0.22 315 / 30%);
+  }
+}
+
+/* Texto con brillo que recorre las letras (indicador «Pensando…» de Agents UI) */
+@utility shimmer {
+  background: linear-gradient(
+      90deg,
+      var(--muted-foreground) 0%,
+      #d946ef 50%,
+      var(--muted-foreground) 100%
+    )
+    0 0 / 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
   }
 }
 
