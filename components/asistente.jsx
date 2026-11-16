@@ -135,20 +135,89 @@ function aBorrador(p, catalogo, solicitud, previo) {
     pendientes: p.pendientes,
     // Conversación con V.E.R.A.: se conserva al rehacer la propuesta
     chat: previo?.chat ?? CHAT_INICIAL,
+    // Lo que el usuario ha cambiado a mano en la página respecto a la IA
+    manual: previo?.manual ?? MANUAL_VACIO,
   }
 }
 
 const CHAT_INICIAL = { mensajes: [], estado: "inactivo", error: null }
 
-// Pares pregunta (redactada de forma neutra por el agente) → respuesta del cliente
+/*
+ * Cambios manuales: si el cliente marca, desmarca o cambia algo en la página
+ * después de la propuesta inicial, es una decisión suya. Se guardan aparte y
+ * se vuelven a aplicar cada vez que la IA rehace la propuesta, para que nunca
+ * se pierdan. Para deshacerlos, el cliente los cambia otra vez en la página.
+ */
+const MANUAL_VACIO = { tipo: null, extras: {} }
+
+function aplicarManual(b) {
+  const { tipo, extras } = b.manual
+  return {
+    ...b,
+    tipo: tipo ?? b.tipo,
+    extras: Object.fromEntries(
+      Object.entries(b.extras).map(([id, e]) => [id, extras[id] ?? e])
+    ),
+  }
+}
+
+// Texto de los cambios manuales para la IA y para V.E.R.A. ("" si no hay)
+function describirManual(b, catalogo) {
+  const partes = []
+  if (b.manual.tipo)
+    partes.push(`tipo de web: ${catalogo[b.manual.tipo].nombre}`)
+  for (const [id, e] of Object.entries(b.manual.extras)) {
+    const s = catalogo[id]
+    if (!s) continue
+    if (!e.activo) partes.push(`quita ${s.nombre}`)
+    else if (s.regla === "unidad")
+      partes.push(`${s.nombre}: ${e.cantidad || "cantidad sin decidir"}`)
+    else partes.push(`añade ${s.nombre}`)
+  }
+  return partes.join("; ")
+}
+
+// Pares pregunta (redactada de forma neutra por el agente) → respuesta del cliente.
+// Lo que el cliente escribe sin que V.E.R.A. haya preguntado nada (por ejemplo,
+// después de cerrar la propuesta) también cuenta: es una petición adicional.
+const PETICION_ADICIONAL = "Petición adicional del cliente"
+
 function respuestasDe(b) {
   const pares = []
   const m = b.chat.mensajes
-  for (let i = 0; i < m.length - 1; i++) {
-    if (m[i].rol === "agente" && m[i].pregunta && m[i + 1].rol === "cliente")
-      pares.push({ pregunta: m[i].pregunta, respuesta: m[i + 1].texto })
+  for (let i = 0; i < m.length; i++) {
+    if (m[i].rol !== "cliente") continue
+    const anterior = m[i - 1]
+    pares.push({
+      pregunta:
+        anterior?.rol === "agente" && anterior.pregunta
+          ? anterior.pregunta
+          : PETICION_ADICIONAL,
+      respuesta: m[i].texto,
+    })
   }
   return pares
+}
+
+// Lo que el usuario tiene marcado en la página (incluidos sus cambios a mano),
+// para que al rehacer la propuesta no se pierda
+const SELECCION_ACTUAL =
+  "Selección actual en la página (mantenla salvo que una petición posterior la cambie)"
+
+const CAMBIOS_MANUALES =
+  "Cambios que el cliente ha hecho a mano en la página después de la propuesta inicial (decisiones suyas: respétalas)"
+
+function seleccionActual(b, catalogo) {
+  const extras = Object.entries(b.extras)
+    .filter(([, e]) => e.activo)
+    .map(([id, e]) =>
+      catalogo[id].regla === "unidad"
+        ? `${catalogo[id].nombre}: ${e.cantidad || "cantidad sin decidir"}`
+        : catalogo[id].nombre
+    )
+  return `Tipo de web: ${b.tipo ? catalogo[b.tipo].nombre : "sin decidir"}. Extras: ${
+    extras.length ? extras.join(", ") : "ninguno"
+  }.`.slice(0, 300)
 }
 
 // Resumen de lo ya decidido, para que V.E.R.A. no lo vuelva a preguntar
@@ -164,6 +233,11 @@ function resumenParaAgente(b, catalogo) {
         : catalogo[id].nombre
     )
   partes.push(`Extras: ${extras.length ? extras.join(", ") : "ninguno"}.`)
+  const manual = describirManual(b, catalogo)
+  if (manual)
+    partes.push(
+      `Marcado a mano por el cliente en la página (decisión suya, ya está decidido): ${manual}.`
+    )
   if (b.pendientes.length)
     partes.push(
       `Fuera del catálogo: ${b.pendientes.map((p) => p.necesidad).join(", ")}.`
@@ -187,9 +261,34 @@ function obligatoriosDe(b, catalogo) {
   return lista
 }
 
+// De qué trata una duda de la IA, para saber si un cambio manual ya la responde
+const TEMA_DUDA = {
+  tipo: /landing|corporativa|tipo de web|una sola p[áa]gina|varias secciones/i,
+  paginaAdicional: /p[áa]ginas?|secci[oó]n|secciones/i,
+  formulario: /formulario/i,
+  segundoIdioma: /idiomas?|ingl[ée]s|traduc/i,
+}
+
+// Dudas de la IA que siguen abiertas: las que el cliente ya ha resuelto
+// marcando algo a mano en la página no se vuelven a preguntar ni van al PDF
+function preguntasAbiertas(b) {
+  const resueltos = [
+    ...(b.manual.tipo ? ["tipo"] : []),
+    ...Object.entries(b.manual.extras)
+      .filter(
+        ([id, e]) =>
+          !(e.activo && e.cantidad === "" && id === "paginaAdicional")
+      )
+      .map(([id]) => id),
+  ]
+    .map((id) => TEMA_DUDA[id])
+    .filter(Boolean)
+  return b.preguntas.filter((p) => !resueltos.some((tema) => tema.test(p)))
+}
+
 // Lo que V.E.R.A. tiene que aclarar: las dudas de la IA y los datos que faltan
 function dudasDe(b, catalogo) {
-  const dudas = [...b.preguntas]
+  const dudas = preguntasAbiertas(b)
   if (!b.tipo)
     dudas.unshift(
       "Falta decidir el tipo de web: una sola página (landing) o varias secciones con menú (corporativa)"
@@ -224,7 +323,7 @@ function aCuerpo(b) {
     resumen: b.resumen,
     servicios,
     // Preguntas sin responder + notas del usuario → «Aclaraciones» del PDF
-    aclaraciones: [...b.preguntas, ...b.notas],
+    aclaraciones: [...preguntasAbiertas(b), ...b.notas],
     respuestas: respuestasDe(b).slice(-15),
     pendientes: b.pendientes,
   }
@@ -646,10 +745,17 @@ function Revision({
   const numSugeridos = Object.keys(borrador.sugerencias).length
 
   const editar = (cambio) => setBorrador((b) => ({ ...b, ...cambio(b) }))
+  // Los cambios de servicios se recuerdan como manuales (ver aplicarManual)
+  const elegirTipo = (id) =>
+    editar((b) => ({ tipo: id, manual: { ...b.manual, tipo: id } }))
   const cambiarExtra = (id, cambio) =>
-    editar((b) => ({
-      extras: { ...b.extras, [id]: { ...b.extras[id], ...cambio } },
-    }))
+    editar((b) => {
+      const extra = { ...b.extras[id], ...cambio }
+      return {
+        extras: { ...b.extras, [id]: extra },
+        manual: { ...b.manual, extras: { ...b.manual.extras, [id]: extra } },
+      }
+    })
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -742,7 +848,7 @@ function Revision({
                   servicio={s}
                   elegido={borrador.tipo === s.id}
                   sugerencia={borrador.sugerencias[s.id]}
-                  onElegir={() => editar(() => ({ tipo: s.id }))}
+                  onElegir={() => elegirTipo(s.id)}
                 />
               ))}
             </div>
@@ -1259,6 +1365,7 @@ function ChatAgente({
   const obligatorios =
     borrador && catalogo ? obligatoriosDe(borrador, catalogo) : []
   const descripcion = borrador?.descripcion
+  const dudasAbiertas = borrador ? preguntasAbiertas(borrador).length : 0
 
   const setChat = React.useCallback(
     (cambio) =>
@@ -1271,9 +1378,24 @@ function ChatAgente({
   // vuelve a preguntar, porque sin ellos no se puede calcular el presupuesto.
   async function actualizar(mensajes) {
     setChat({ mensajes, estado: "actualizando", error: null })
-    const respuestas = respuestasDe({ chat: { mensajes } }).slice(
-      -RESPUESTAS_MAX
-    )
+    // Primero la selección actual de la página; después lo hablado en el chat
+    // (lo más reciente manda si contradice la selección)
+    const manual = describirManual(borrador, catalogo)
+    const contexto = [
+      {
+        pregunta: SELECCION_ACTUAL,
+        respuesta: seleccionActual(borrador, catalogo),
+      },
+      ...(manual
+        ? [{ pregunta: CAMBIOS_MANUALES, respuesta: manual.slice(0, 300) }]
+        : []),
+    ]
+    const respuestas = [
+      ...contexto,
+      ...respuestasDe({ chat: { mensajes } }).slice(
+        -(RESPUESTAS_MAX - contexto.length)
+      ),
+    ]
     const { estado, datos } = await pedirPropuesta({
       cliente,
       descripcion,
@@ -1292,8 +1414,14 @@ function ChatAgente({
 
     // Se calcula fuera del actualizador de estado (React no garantiza
     // ejecutarlo en el momento); las notas y el chat se toman del estado más reciente
-    const nuevo = aBorrador(datos, catalogo, borrador)
-    setBorrador((b) => ({ ...nuevo, notas: b.notas, chat: b.chat }))
+    // Los cambios manuales del cliente se reaplican: la IA no puede quitarlos
+    const nuevo = aplicarManual(aBorrador(datos, catalogo, borrador, borrador))
+    setBorrador((b) => ({
+      ...nuevo,
+      notas: b.notas,
+      chat: b.chat,
+      manual: b.manual,
+    }))
     const faltan = obligatoriosDe(nuevo, catalogo)
     if (faltan.length > 0) {
       // Nueva ronda solo para el dato que falta: se marca el último mensaje
@@ -1390,7 +1518,9 @@ function ChatAgente({
     setTexto("")
     const lista = [...chat.mensajes, crearMensaje("cliente", limpio)]
     // Si no había pregunta abierta, el agente sabe que el cliente quiere añadir algo
-    pedirTurno(lista, libre ? [DUDA_LIBRE, ...dudas] : dudas)
+    pedirTurno(lista, {
+      dudasTurno: libre ? [DUDA_LIBRE, ...dudas] : dudas,
+    })
   }
 
   function reintentar() {
@@ -1542,11 +1672,10 @@ function ChatAgente({
               </div>
             )}
 
-            {chat.estado === "terminado" && borrador?.preguntas.length > 0 && (
+            {chat.estado === "terminado" && dudasAbiertas > 0 && (
               <p className="text-xs text-muted-foreground">
-                Quedan {borrador.preguntas.length}{" "}
-                {borrador.preguntas.length === 1 ? "duda" : "dudas"} sin
-                aclarar: irán al presupuesto como pendientes.
+                Quedan {dudasAbiertas} {dudasAbiertas === 1 ? "duda" : "dudas"}{" "}
+                sin aclarar: irán al presupuesto como pendientes.
               </p>
             )}
 
